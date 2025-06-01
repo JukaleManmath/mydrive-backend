@@ -9,12 +9,11 @@ import logging
 from datetime import timedelta, datetime
 from pydantic import BaseModel
 import shutil
-
-from app import models, schemas, file_utils
-from app.database import engine, get_db
-from app.utils import versioning
-from app.utils.s3_service import S3Service
-from app.auth.auth import (
+from . import models, schemas, crud
+from .database import engine, get_db
+from .utils import versioning
+from .utils.s3_service import S3Service
+from .auth.auth import (
     get_password_hash,
     verify_password,
     create_access_token,
@@ -24,6 +23,12 @@ from app.auth.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user
 )
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +48,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # Local development
         "https://mydrive-frontend.vercel.app",  # Production frontend
+        "https://mydrive-frontend-git-main-jukalemanmath.vercel.app",  # Vercel preview
+        "https://mydrive-frontend-jukalemanmath.vercel.app",  # Vercel production
         os.getenv("CORS_ORIGINS", "").split(",")  # Additional origins from env
     ],
     allow_credentials=True,
