@@ -66,8 +66,8 @@ def save_upload_file(file: UploadFile, user_id: int) -> tuple[str, int, str]:
     """Save uploaded file to S3 and return (file_path, file_size, file_type)"""
     try:
         logger.info(f"Starting file save for user {user_id}")
-        
-        # Get file size
+    
+    # Get file size
         file.file.seek(0, 2)  # Seek to end
         file_size = file.file.tell()
         file.file.seek(0)  # Reset to beginning

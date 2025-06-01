@@ -40,12 +40,16 @@ app = FastAPI(title="MyDrive")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # React app's address
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://mydrive-frontend.vercel.app",  # Production frontend
+        os.getenv("CORS_ORIGINS", "").split(",")  # Additional origins from env
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-    expose_headers=["*"],  # Exposes all headers
-    max_age=3600,  # Cache preflight requests for 1 hour
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 @app.middleware("http")

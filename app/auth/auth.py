@@ -71,7 +71,7 @@ def get_current_admin_user(current_user: models.User = Depends(get_current_activ
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    return current_user
+    return current_user 
 
 def authenticate_user(db: Session, username_or_email: str, password: str):
     user = db.query(models.User).filter(
