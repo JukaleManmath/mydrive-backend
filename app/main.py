@@ -156,7 +156,7 @@ def file_to_dict(file_obj: models.File):
         "is_shared": file_obj.is_shared,
         "name": file_obj.filename,  # Add name field for frontend
         "size": file_obj.file_size,  # Add size field for frontend
-        "s3_key": file_obj.file_path,  # Add s3_key field for frontend
+        "s3_key": file_obj.file_path or "",  # Use empty string if file_path is None
     }
     
     # Add optional fields if they exist
