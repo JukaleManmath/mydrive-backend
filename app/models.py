@@ -35,21 +35,15 @@ class FileVersion(Base):
     __tablename__ = "file_versions"
 
     id = Column(Integer, primary_key=True, index=True)
-    file_id = Column(Integer, ForeignKey("files.id", ondelete="CASCADE"))
-    version_number = Column(Integer, nullable=False)
-    file_path = Column(String, nullable=False)
-    file_size = Column(Integer, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    created_by = Column(Integer, ForeignKey("users.id"))
-    comment = Column(Text, nullable=True)
-    is_current = Column(Boolean, default=False)
+    file_id = Column(Integer, ForeignKey("files.id"))
+    version_number = Column(Integer)
+    file_path = Column(String)
+    file_size = Column(Integer)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    comment = Column(String, nullable=True)
+    is_current = Column(Boolean, default=True)
 
-    # Relationships
     file = relationship("File", back_populates="versions")
-    created_by_user = relationship("User", back_populates="created_versions", foreign_keys=[created_by])
-
-    class Config:
-        orm_mode = True
 
 class File(Base):
     __tablename__ = "files"

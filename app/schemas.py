@@ -22,8 +22,10 @@ class User(UserBase):
         from_attributes = True
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
     username: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
 
 class PasswordUpdate(BaseModel):
     current_password: str

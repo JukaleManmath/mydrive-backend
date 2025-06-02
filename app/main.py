@@ -975,4 +975,67 @@ async def move_file(
         raise he
     except Exception as e:
         logger.error(f"Error moving file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Admin routes
+@app.get("/admin/users", response_model=List[schemas.User])
+def get_all_users(
+    current_user: models.User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Get all users (admin only)"""
+    try:
+        users = db.query(models.User).all()
+        return users
+    except Exception as e:
+        logger.error(f"Error getting all users: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/admin/users/{user_id}", response_model=schemas.User)
+def update_user(
+    user_id: int,
+    user_update: schemas.UserUpdate,
+    current_user: models.User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Update a user (admin only)"""
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update user fields
+        for field, value in user_update.dict(exclude_unset=True).items():
+            setattr(user, field, value)
+        
+        db.commit()
+        db.refresh(user)
+        return user
+    except Exception as e:
+        logger.error(f"Error updating user: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/admin/users/{user_id}")
+def delete_user(
+    user_id: int,
+    current_user: models.User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a user (admin only)"""
+    try:
+        user = db.query(models.User).filter(models.User.id == user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Don't allow deleting the last admin
+        if user.is_admin:
+            admin_count = db.query(models.User).filter(models.User.is_admin == True).count()
+            if admin_count <= 1:
+                raise HTTPException(status_code=400, detail="Cannot delete the last admin user")
+        
+        db.delete(user)
+        db.commit()
+        return {"message": "User deleted successfully"}
+    except Exception as e:
+        logger.error(f"Error deleting user: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
