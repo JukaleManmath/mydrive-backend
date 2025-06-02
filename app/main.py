@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Form, Request, Query, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
@@ -9,7 +9,7 @@ import logging
 from datetime import timedelta, datetime
 from pydantic import BaseModel
 import shutil
-from . import models, schemas
+from . import models, schemas, crud
 from .database import engine, get_db
 from .utils import versioning
 from .utils.s3_service import S3Service
@@ -26,6 +26,8 @@ from .auth.auth import (
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -58,6 +60,11 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,
 )
+
+# Mount static files
+static_dir = Path("static")
+static_dir.mkdir(exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -603,4 +610,125 @@ def get_folder_contents_endpoint(
 
 @app.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_active_user)):
-    return current_user 
+    return current_user
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to MyDrive API", "status": "healthy"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.post("/users/", response_model=schemas.User)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_email(db, email=user.email)
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    return crud.create_user(db=db, user=user)
+
+@app.get("/users/{user_id}", response_model=schemas.User)
+def read_user(user_id: int, db: Session = Depends(get_db)):
+    db_user = crud.get_user(db, user_id=user_id)
+    if db_user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return db_user
+
+@app.post("/files/", response_model=schemas.File)
+def create_file(
+    file: schemas.FileCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    return crud.create_file(db=db, file=file, user_id=current_user.id)
+
+@app.get("/files/", response_model=list[schemas.File])
+def read_files(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    files = crud.get_user_files(db, user_id=current_user.id, skip=skip, limit=limit)
+    return files
+
+@app.get("/files/{file_id}", response_model=schemas.File)
+def read_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_file = crud.get_file(db, file_id=file_id)
+    if db_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if db_file.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this file")
+    return db_file
+
+@app.delete("/files/{file_id}")
+def delete_file(
+    file_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_file = crud.get_file(db, file_id=file_id)
+    if db_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if db_file.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this file")
+    crud.delete_file(db=db, file_id=file_id)
+    return {"message": "File deleted successfully"}
+
+@app.post("/files/{file_id}/share", response_model=schemas.FileShare)
+def share_file(
+    file_id: int,
+    share: schemas.FileShareCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_file = crud.get_file(db, file_id=file_id)
+    if db_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if db_file.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to share this file")
+    return crud.create_file_share(db=db, file_id=file_id, share=share)
+
+@app.get("/shared-files/", response_model=list[schemas.File])
+def read_shared_files(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    files = crud.get_shared_files(db, user_id=current_user.id, skip=skip, limit=limit)
+    return files
+
+@app.post("/files/{file_id}/versions", response_model=schemas.FileVersion)
+def create_file_version(
+    file_id: int,
+    version: schemas.FileVersionCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_file = crud.get_file(db, file_id=file_id)
+    if db_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if db_file.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to create version for this file")
+    return crud.create_file_version(db=db, file_id=file_id, version=version, user_id=current_user.id)
+
+@app.get("/files/{file_id}/versions", response_model=list[schemas.FileVersion])
+def read_file_versions(
+    file_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    db_file = crud.get_file(db, file_id=file_id)
+    if db_file is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    if db_file.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view versions of this file")
+    versions = crud.get_file_versions(db, file_id=file_id, skip=skip, limit=limit)
+    return versions 
