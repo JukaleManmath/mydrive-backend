@@ -373,7 +373,9 @@ def get_files(
         query = query.filter(models.File.parent_id == parent_id)
     else:
         query = query.filter(models.File.parent_id.is_(None))
-    return [file_to_dict(file) for file in query.all()]
+    files = [file_to_dict(file) for file in query.all()]
+    logger.info(f"Returning files: {files}")
+    return files
 
 @app.get("/files/all", response_model=List[schemas.File])
 def get_all_files(
