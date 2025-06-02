@@ -153,7 +153,8 @@ def file_to_dict(file_obj: models.File):
         "upload_date": file_obj.upload_date,
         "owner_id": file_obj.owner_id,
         "parent_id": file_obj.parent_id,
-        "type": file_obj.type,
+        "type": 'folder' if (getattr(file_obj, 'mime_type', None) == 'folder' or getattr(file_obj, 'file_type', None) == 'folder' or getattr(file_obj, 'type', None) == 'folder') else 'file',
+        "is_folder": (getattr(file_obj, 'mime_type', None) == 'folder' or getattr(file_obj, 'file_type', None) == 'folder' or getattr(file_obj, 'type', None) == 'folder'),
         "is_shared": file_obj.is_shared,
         "name": file_obj.filename,  # Add name field for frontend
         "size": file_obj.file_size,  # Add size field for frontend
