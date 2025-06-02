@@ -567,4 +567,8 @@ def get_folder_contents_endpoint(
         models.File.parent_id == folder_id
     ).all()
     
-    return [file_to_dict(item) for item in contents] 
+    return [file_to_dict(item) for item in contents]
+
+@app.get("/users/me", response_model=schemas.User)
+def read_users_me(current_user: models.User = Depends(get_current_active_user)):
+    return current_user 
