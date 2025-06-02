@@ -541,29 +541,23 @@ def share_file(
 ):
     try:
         logger.info(f"Share request for file/folder ID: {file_id} from user: {current_user.username}")
-        
         # Get the file/folder to share
         item = db.query(models.File).filter(models.File.id == file_id).first()
         if not item:
             raise HTTPException(status_code=404, detail="File or folder not found")
-        
         logger.info(f"Found item: {item.filename} (ID: {item.id}, type: {item.type})")
-        
         # Check if user is the owner
         if item.owner_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to share this item")
-        
-        # Get the user to share with
+        # Get the user to share with by email
         shared_with_user = db.query(models.User).filter(models.User.email == share_data.shared_with_email).first()
         if not shared_with_user:
             raise HTTPException(status_code=404, detail="User not found")
-        
         # Check if already shared
         existing_share = db.query(models.FileShare).filter(
             models.FileShare.file_id == file_id,
             models.FileShare.shared_with_id == shared_with_user.id
         ).first()
-        
         if existing_share:
             # Update existing share
             existing_share.permission = share_data.permission
@@ -574,7 +568,6 @@ def share_file(
                 "shared_with": shared_with_user.email,
                 "permission": share_data.permission
             }
-        
         # Create new share
         share = models.FileShare(
             file_id=file_id,
@@ -582,14 +575,11 @@ def share_file(
             permission=share_data.permission
         )
         db.add(share)
-        
         # If it's a folder, recursively share all contents
         if item.type == 'folder':
             recursively_share_folder(db, file_id, shared_with_user.id, share_data.permission)
-        
         db.commit()
         logger.info(f"Successfully shared {item.filename} with user {shared_with_user.email}")
-        
         return {
             "file_id": file_id,
             "shared_with": shared_with_user.email,

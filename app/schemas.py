@@ -63,8 +63,11 @@ class FileShareBase(BaseModel):
     shared_with_id: int
     permission: PermissionType = PermissionType.READ
 
-class FileShareCreate(FileShareBase):
-    pass
+class FileShareCreate(BaseModel):
+    shared_with_email: str
+    permission: str = 'read'
+    # For backward compatibility
+    shared_with_id: Optional[int] = None
 
 class FileShare(FileShareBase):
     id: int
