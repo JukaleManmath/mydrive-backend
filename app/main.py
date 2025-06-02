@@ -865,13 +865,17 @@ async def get_file_content(
         # Prevent preview for folders
         if file.type == 'folder' or (file.mime_type == 'folder'):
             raise HTTPException(status_code=400, detail="Cannot preview a folder")
-        # If file is text, return content
-        if file.file_type and file.file_type.startswith('text/'):
+        # If file is text or code, return content
+        code_extensions = ['.py', '.js', '.ts', '.tsx', '.jsx', '.java', '.cpp', '.c', '.h', '.hpp', '.cs', '.rb', '.go', '.rs', '.swift', '.php', '.sh', '.pl', '.lua', '.md', '.json', '.yml', '.yaml', '.toml', '.ini', '.txt']
+        ext = os.path.splitext(file.filename)[1].lower()
+        is_code = ext in code_extensions
+        is_text = (file.file_type and file.file_type.startswith('text/')) or (file.mime_type and file.mime_type.startswith('text/'))
+        if is_text or is_code:
             try:
                 file_content = s3_service.get_file(file.file_path)
-                return {"content": file_content.decode('utf-8')}
+                return {"content": file_content.decode('utf-8', errors='replace')}
             except Exception as e:
-                logger.error(f"Error getting text file from S3: {str(e)}")
+                logger.error(f"Error getting text/code file from S3: {str(e)}")
                 raise HTTPException(status_code=500, detail="Error retrieving file")
         # For binary files (pdf, images, etc.), return a presigned URL
         try:
