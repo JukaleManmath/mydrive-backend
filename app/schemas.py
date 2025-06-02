@@ -9,12 +9,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    username: str
 
 class User(UserBase):
     id: int
     is_active: bool
     is_admin: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

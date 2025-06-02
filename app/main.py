@@ -210,10 +210,6 @@ async def upload_file(
         # Get file type
         file_type = file.content_type or 'application/octet-stream'
         
-        if not file_utils.is_valid_file_type(file_type):
-            logger.error(f"Invalid file type: {file_type}")
-            raise HTTPException(status_code=400, detail="File type not allowed")
-
         # Upload file to S3
         logger.info("Uploading file to S3...")
         try:
@@ -233,7 +229,8 @@ async def upload_file(
                 upload_date=datetime.utcnow(),
                 owner_id=current_user.id,
                 parent_id=parent_id,
-                type='file'
+                type='file',
+                mime_type=file_type
             )
             db.add(db_file)
             db.commit()
@@ -258,7 +255,9 @@ async def upload_file(
                     version_number=1,
                     file_path=db_file.file_path,
                     file_size=db_file.file_size,
-                    created_at=db_file.upload_date
+                    created_at=db_file.upload_date,
+                    created_by=current_user.id,
+                    is_current=True
                 )
                 db.add(version)
                 db.commit()
@@ -572,9 +571,49 @@ def share_file(
         logger.error(f"Error sharing file/folder: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/files/folders", response_model=schemas.File)
-def create_folder_alias(folder_data: schemas.FileCreate, current_user: models.User = Depends(get_current_active_user), db: Session = Depends(get_db)):
-    return create_folder(folder_data, current_user, db)
+@app.post("/folders/", response_model=schemas.File)
+def create_folder(
+    folder_data: schemas.FolderCreate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        logger.info(f"Creating folder: {folder_data.name} for user {current_user.username}")
+        
+        # Check if parent folder exists and is owned by user
+        if folder_data.parent_id is not None:
+            parent_folder = db.query(models.File).filter(
+                models.File.id == folder_data.parent_id,
+                models.File.owner_id == current_user.id,
+                models.File.type == 'folder'
+            ).first()
+            if not parent_folder:
+                raise HTTPException(status_code=404, detail="Parent folder not found or not owned by user")
+
+        # Create folder record
+        db_folder = models.File(
+            filename=folder_data.name,
+            file_path=None,  # Folders don't have a file path
+            file_size=0,  # Folders don't have a size
+            file_type=None,  # Folders don't have a file type
+            upload_date=datetime.utcnow(),
+            owner_id=current_user.id,
+            parent_id=folder_data.parent_id,
+            type='folder',
+            is_shared=False
+        )
+        db.add(db_folder)
+        db.commit()
+        db.refresh(db_folder)
+        
+        logger.info(f"Folder created successfully with ID: {db_folder.id}")
+        return file_to_dict(db_folder)
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error creating folder: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/files/{folder_id}/contents", response_model=List[schemas.File])
 def get_folder_contents_endpoint(
