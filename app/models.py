@@ -4,6 +4,7 @@ from sqlalchemy.sql import func
 import enum
 from datetime import datetime
 from .database import Base
+import uuid
 
 class User(Base):
     __tablename__ = "users"
@@ -15,6 +16,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    auth_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
 
     files = relationship("File", back_populates="owner")
     shared_files = relationship("FileShare", back_populates="shared_with")
