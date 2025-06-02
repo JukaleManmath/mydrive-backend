@@ -154,6 +154,9 @@ def file_to_dict(file_obj: models.File):
         "parent_id": file_obj.parent_id,
         "type": file_obj.type,
         "is_shared": file_obj.is_shared,
+        "name": file_obj.filename,  # Add name field for frontend
+        "size": file_obj.file_size,  # Add size field for frontend
+        "s3_key": file_obj.file_path,  # Add s3_key field for frontend
     }
     
     # Add optional fields if they exist
