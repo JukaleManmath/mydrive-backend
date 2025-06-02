@@ -149,6 +149,18 @@ def file_to_dict(file_obj: models.File):
         "is_shared": file_obj.is_shared,
     }
     
+    # Add optional fields if they exist
+    if hasattr(file_obj, 'created_at'):
+        file_dict["created_at"] = file_obj.created_at
+    if hasattr(file_obj, 'updated_at'):
+        file_dict["updated_at"] = file_obj.updated_at
+    if hasattr(file_obj, 'is_deleted'):
+        file_dict["is_deleted"] = file_obj.is_deleted
+    if hasattr(file_obj, 'version'):
+        file_dict["version"] = file_obj.version
+    if hasattr(file_obj, 'mime_type'):
+        file_dict["mime_type"] = file_obj.mime_type
+    
     # Recursively convert children if they exist
     children_list = []
     # Check if children relationship is loaded and is an iterable
@@ -356,8 +368,28 @@ def get_all_files(
     db: Session = Depends(get_db)
 ):
     """Get all files and folders owned by the user, regardless of their location in the folder structure."""
-    query = db.query(models.File).filter(models.File.owner_id == current_user.id)
-    return [file_to_dict(file) for file in query.all()]
+    try:
+        query = db.query(models.File).filter(models.File.owner_id == current_user.id)
+        return [file_to_dict(file) for file in query.all()]
+    except Exception as e:
+        logger.error(f"Error fetching all files: {str(e)}")
+        # If created_at/updated_at columns don't exist, try without them
+        query = db.query(
+            models.File.id,
+            models.File.filename,
+            models.File.file_path,
+            models.File.file_size,
+            models.File.file_type,
+            models.File.upload_date,
+            models.File.owner_id,
+            models.File.is_shared,
+            models.File.type,
+            models.File.parent_id,
+            models.File.is_deleted,
+            models.File.version,
+            models.File.mime_type
+        ).filter(models.File.owner_id == current_user.id)
+        return [file_to_dict(file) for file in query.all()]
 
 @app.get("/files/{file_id}", response_model=schemas.File)
 def get_file(
