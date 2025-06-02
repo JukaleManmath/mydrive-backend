@@ -1,7 +1,7 @@
 """add is_deleted column
 
 Revision ID: add_is_deleted_column
-Revises: add_missing_columns
+Revises: enable_rls
 Create Date: 2024-03-19 11:30:00.000000
 
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_is_deleted_column'
-down_revision = 'add_missing_columns'
+down_revision = 'enable_rls'
 branch_labels = None
 depends_on = None
 
