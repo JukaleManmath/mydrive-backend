@@ -1,7 +1,7 @@
 """add missing columns
 
 Revision ID: add_missing_columns
-Revises: add_auth_uuid
+Revises: enable_rls
 Create Date: 2024-03-19 11:00:00.000000
 
 """
@@ -11,7 +11,7 @@ from datetime import datetime
 
 # revision identifiers, used by Alembic.
 revision = 'add_missing_columns'
-down_revision = 'add_auth_uuid'
+down_revision = 'enable_rls'
 branch_labels = None
 depends_on = None
 
