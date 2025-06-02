@@ -463,6 +463,22 @@ def delete_file(
         
         # Delete the file record
         try:
+            # First, try to delete any versions
+            try:
+                versions = db.query(models.FileVersion).filter(models.FileVersion.file_id == file_id).all()
+                for version in versions:
+                    if version.file_path:
+                        try:
+                            s3_service.delete_file(version.file_path)
+                        except Exception as e:
+                            logger.error(f"Error deleting version from S3: {str(e)}")
+                    db.delete(version)
+                db.commit()
+            except Exception as e:
+                logger.error(f"Error deleting versions: {str(e)}")
+                # Continue with file deletion even if version deletion fails
+            
+            # Then delete the file
             db.delete(file)
             db.commit()
             logger.info(f"File {file_id} deleted successfully")

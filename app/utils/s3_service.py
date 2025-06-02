@@ -20,40 +20,33 @@ class S3Service:
             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name=os.getenv('AWS_REGION')
         )
-        self.bucket_name = os.getenv('S3_BUCKET_NAME')
+        self.bucket_name = os.getenv('AWS_BUCKET_NAME')
         logger.info(f"Initialized S3 service with bucket: {self.bucket_name}")
+        
         # Configure CORS for the bucket
-        self.configure_cors()
-
-    def configure_cors(self):
-        """Configure CORS for the S3 bucket"""
+        cors_configuration = {
+            'CORSRules': [{
+                'AllowedHeaders': ['*'],
+                'AllowedMethods': ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
+                'AllowedOrigins': [
+                    'https://mydrive-frontend.vercel.app',
+                    'https://mydrive-frontend-git-main-jukalemanmath.vercel.app',
+                    'https://mydrive-frontend-jukalemanmath.vercel.app',
+                    'http://localhost:3000'
+                ],
+                'ExposeHeaders': ['ETag', 'Content-Length', 'Content-Type', 'Content-Disposition'],
+                'MaxAgeSeconds': 3600
+            }]
+        }
+        logger.info(f"Configuring CORS for S3 bucket with origins: {cors_configuration['CORSRules'][0]['AllowedOrigins']}")
         try:
-            # Get allowed origins from environment variable or use defaults
-            allowed_origins = os.getenv('CORS_ORIGINS', '').split(',') or [
-                'http://localhost:3000',  # Local development
-                'https://mydrive-frontend.vercel.app',  # Production frontend
-                'https://mydrive-frontend-git-main-jukalemanmath.vercel.app',  # Vercel preview
-                'https://mydrive-frontend-jukalemanmath.vercel.app'  # Vercel production
-            ]
-            
-            cors_configuration = {
-                'CORSRules': [{
-                    'AllowedHeaders': ['*'],
-                    'AllowedMethods': ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-                    'AllowedOrigins': allowed_origins,
-                    'ExposeHeaders': ['ETag', 'Content-Length', 'Content-Type', 'Content-Disposition'],
-                    'MaxAgeSeconds': 3600
-                }]
-            }
-            logger.info(f"Configuring CORS for S3 bucket with origins: {allowed_origins}")
             self.s3_client.put_bucket_cors(
                 Bucket=self.bucket_name,
                 CORSConfiguration=cors_configuration
             )
             logger.info("CORS configuration applied successfully")
-        except ClientError as e:
+        except Exception as e:
             logger.error(f"Error configuring CORS: {str(e)}")
-            raise Exception(f"Error configuring CORS: {str(e)}")
 
     def upload_file(self, file: BinaryIO, file_name: str, user_id: str) -> str:
         """Upload a file to S3"""
