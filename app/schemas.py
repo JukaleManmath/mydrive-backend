@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, List
+from typing import List, Optional
 from datetime import datetime
 from pydantic import validator
 from .models import PermissionType
