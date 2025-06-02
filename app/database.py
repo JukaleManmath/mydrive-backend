@@ -24,7 +24,14 @@ engine = create_engine(
     pool_size=5,
     max_overflow=10,
     pool_timeout=30,
-    pool_recycle=1800
+    pool_recycle=1800,
+    pool_pre_ping=True,  # Enable connection health checks
+    connect_args={
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5
+    }
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -36,4 +43,7 @@ def get_db():
     try:
         yield db
     finally:
-        db.close() 
+        try:
+            db.close()
+        except Exception as e:
+            logger.error(f"Error closing database connection: {str(e)}") 

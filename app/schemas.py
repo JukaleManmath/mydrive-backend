@@ -97,13 +97,13 @@ class FileVersion(BaseModel):
     is_current: bool = False
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class FileVersionWithUser(FileVersion):
     created_by: User
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class FolderCreate(BaseModel):
     name: str
