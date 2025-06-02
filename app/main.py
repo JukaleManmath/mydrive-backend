@@ -598,24 +598,17 @@ def share_file(
 
 @app.post("/folders/", response_model=schemas.File)
 def create_folder(
-    folder_data: dict,  # Change to accept raw dict
+    folder_data: schemas.FolderCreate,  # Use the FolderCreate schema
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
     try:
-        # Get folder name from either name or filename field
-        folder_name = folder_data.get('filename') or folder_data.get('name')
-        if not folder_name:
-            raise HTTPException(status_code=400, detail="Folder name is required")
-            
-        parent_id = folder_data.get('parent_id')
-        
-        logger.info(f"Creating folder: {folder_name} for user {current_user.username}")
+        logger.info(f"Creating folder: {folder_data.name} for user {current_user.username}")
         
         # Check if parent folder exists and is owned by user
-        if parent_id is not None:
+        if folder_data.parent_id is not None:
             parent_folder = db.query(models.File).filter(
-                models.File.id == parent_id,
+                models.File.id == folder_data.parent_id,
                 models.File.owner_id == current_user.id,
                 models.File.type == 'folder'
             ).first()
@@ -624,13 +617,13 @@ def create_folder(
 
         # Create folder record with explicit type='folder'
         db_folder = models.File(
-            filename=folder_name,
+            filename=folder_data.name,  # Use the name from FolderCreate schema
             file_path=None,  # Folders don't have a file path
             file_size=0,  # Folders don't have a size
             file_type='folder',  # Set file_type to 'folder'
             upload_date=datetime.utcnow(),
             owner_id=current_user.id,
-            parent_id=parent_id,
+            parent_id=folder_data.parent_id,
             type='folder',  # Explicitly set type to folder
             is_shared=False,
             mime_type='folder'  # Set mime_type to 'folder'
