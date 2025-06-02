@@ -15,7 +15,6 @@ class User(UserBase):
     is_active: bool
     is_admin: bool
     created_at: datetime
-    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -101,4 +100,8 @@ class FileVersionWithUser(FileVersion):
     created_by: User
 
     class Config:
-        orm_mode = True 
+        orm_mode = True
+
+class FolderCreate(BaseModel):
+    name: str
+    parent_id: Optional[int] = None 
