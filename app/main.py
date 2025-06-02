@@ -455,10 +455,10 @@ def delete_file(
         
         # Delete all shares first
         try:
-            shares = db.query(models.FileShare).filter(models.FileShare.file_id == file_id).all()
-            for share in shares:
-                db.delete(share)
+            delete_shares = text("DELETE FROM file_shares WHERE file_id = :file_id")
+            db.execute(delete_shares, {"file_id": file_id})
             db.commit()
+            logger.info(f"Deleted shares for file {file_id}")
         except Exception as e:
             logger.error(f"Error deleting shares: {str(e)}")
             db.rollback()
@@ -467,7 +467,6 @@ def delete_file(
         try:
             # First, try to delete any versions
             try:
-                # Use SQLAlchemy text() for raw SQL
                 delete_versions = text("DELETE FROM file_versions WHERE file_id = :file_id")
                 db.execute(delete_versions, {"file_id": file_id})
                 db.commit()
@@ -477,14 +476,20 @@ def delete_file(
                 db.rollback()
                 # Continue with file deletion even if version deletion fails
             
-            # Then delete the file
-            db.delete(file)
-            db.commit()
-            logger.info(f"File {file_id} deleted successfully")
-            return {"message": "File deleted successfully"}
+            # Then delete the file using raw SQL
+            try:
+                delete_file = text("DELETE FROM files WHERE id = :file_id")
+                db.execute(delete_file, {"file_id": file_id})
+                db.commit()
+                logger.info(f"File {file_id} deleted successfully")
+                return {"message": "File deleted successfully"}
+            except Exception as e:
+                logger.error(f"Error deleting file record: {str(e)}")
+                db.rollback()
+                raise HTTPException(status_code=500, detail=str(e))
+            
         except Exception as e:
-            logger.error(f"Error deleting file record: {str(e)}")
-            db.rollback()
+            logger.error(f"Error in file deletion process: {str(e)}")
             raise HTTPException(status_code=500, detail=str(e))
             
     except HTTPException as he:
