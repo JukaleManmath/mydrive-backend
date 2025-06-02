@@ -28,16 +28,24 @@ class S3Service:
     def configure_cors(self):
         """Configure CORS for the S3 bucket"""
         try:
+            # Get allowed origins from environment variable or use defaults
+            allowed_origins = os.getenv('CORS_ORIGINS', '').split(',') or [
+                'http://localhost:3000',  # Local development
+                'https://mydrive-frontend.vercel.app',  # Production frontend
+                'https://mydrive-frontend-git-main-jukalemanmath.vercel.app',  # Vercel preview
+                'https://mydrive-frontend-jukalemanmath.vercel.app'  # Vercel production
+            ]
+            
             cors_configuration = {
                 'CORSRules': [{
                     'AllowedHeaders': ['*'],
                     'AllowedMethods': ['GET', 'PUT', 'POST', 'DELETE', 'HEAD'],
-                    'AllowedOrigins': ['http://localhost:3000'],  # React app's address
+                    'AllowedOrigins': allowed_origins,
                     'ExposeHeaders': ['ETag', 'Content-Length', 'Content-Type', 'Content-Disposition'],
                     'MaxAgeSeconds': 3600
                 }]
             }
-            logger.info("Configuring CORS for S3 bucket...")
+            logger.info(f"Configuring CORS for S3 bucket with origins: {allowed_origins}")
             self.s3_client.put_bucket_cors(
                 Bucket=self.bucket_name,
                 CORSConfiguration=cors_configuration

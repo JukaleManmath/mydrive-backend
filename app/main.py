@@ -295,147 +295,47 @@ def get_folder_contents(db: Session, folder_id: int, current_user_id: int):
     
     return contents
 
-@app.get("/files/shared-with-me", response_model=List[schemas.SharedFileResponse])
+@app.get("/files/shared-with-me", response_model=List[schemas.FileShare])
 def files_shared_with_me(
+    current_user: models.User = Depends(get_current_active_user),
     skip: int = 0,
     limit: int = 100,
-    current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    """Get files shared with the current user"""
     logger.info(f"Fetching shared files for user: {current_user.email} (ID: {current_user.id})")
-    
-    # Get all shares for the current user with pagination
-    shared_entries = db.query(models.FileShare).filter(
-        models.FileShare.shared_with_id == current_user.id
-    ).order_by(models.FileShare.share_date.desc()).offset(skip).limit(limit).all()
-    
-    logger.info(f"Found {len(shared_entries)} shared entries")
-    
-    # Keep track of files we've already included to avoid duplicates
-    processed_files = set()
-    files = []
-    
-    for entry in shared_entries:
-        if not entry.file_id:  # Skip entries with no file_id
-            continue
-            
-        logger.info(f"Processing share entry: file_id={entry.file_id}, permission={entry.permission}")
-        # Get the file and include the share information
-        file = db.query(models.File).filter(models.File.id == entry.file_id).first()
-        if file:
-            logger.info(f"Found file: {file.filename} (ID: {file.id})")
-            try:
-                # Skip if this file is a child of a folder we've already processed
-                if file.parent_id and file.parent_id in processed_files:
-                    continue
-                
-                # If this is a folder, get its contents and add them to the list
-                if file.type == 'folder':
-                    folder_contents = get_folder_contents(db, file.id, current_user.id)
-                    for content in folder_contents:
-                        if content["id"] not in processed_files:
-                            # Remove parent_id to show files at root level
-                            content["parent_id"] = None
-                            processed_files.add(content["id"])
-                            shared_file = schemas.SharedFileResponse(**content)
-                            files.append(shared_file)
-                else:
-                    # For regular files, add them directly
-                    file_dict = {
-                        "id": file.id,
-                        "filename": file.filename,
-                        "file_path": file.file_path,
-                        "file_size": file.file_size,
-                        "file_type": file.file_type,
-                        "upload_date": file.upload_date.isoformat() if file.upload_date else None,
-                        "owner_id": file.owner_id,
-                        "is_shared": True,  # Mark as shared since it's in the shared list
-                        "type": file.type,
-                        "parent_id": None,  # Set to None to show at root level
-                        "permission": entry.permission,
-                        "children": []
-                    }
-                    processed_files.add(file.id)
-                    shared_file = schemas.SharedFileResponse(**file_dict)
-                    files.append(shared_file)
-                
-            except Exception as e:
-                logger.error(f"Error creating SharedFileResponse object: {str(e)}")
-                logger.error(f"File data: {file.__dict__}")
-                logger.error(f"Share entry data: {entry.__dict__}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error processing file {file.id}: {str(e)}"
-                )
-        else:
-            logger.warning(f"File not found for share entry: file_id={entry.file_id}")
-    
-    logger.info(f"Returning {len(files)} shared files")
-    logger.info(f"Response data: {files}")
-    return files
+    try:
+        # First try with share_date
+        return db.query(models.FileShare).filter(
+            models.FileShare.shared_with_id == current_user.id
+        ).order_by(models.FileShare.share_date.desc()).offset(skip).limit(limit).all()
+    except Exception as e:
+        logger.error(f"Error fetching shared files: {str(e)}")
+        # If share_date column doesn't exist, try without it
+        return db.query(models.FileShare).filter(
+            models.FileShare.shared_with_id == current_user.id
+        ).offset(skip).limit(limit).all()
 
-@app.get("/files/recent-shared", response_model=List[schemas.SharedFileResponse])
+@app.get("/files/recent-shared", response_model=List[schemas.FileShare])
 def recent_shared_files(
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get the 3 most recently shared files with the current user."""
+    """Get recently shared files"""
     logger.info(f"Fetching recent shared files for user: {current_user.email}")
-    
-    # Get the 3 most recent shares for the current user
-    shared_entries = db.query(models.FileShare).filter(
-        models.FileShare.shared_with_id == current_user.id,
-        models.FileShare.file_id.isnot(None)  # Only get entries with valid file_id
-    ).order_by(models.FileShare.share_date.desc()).limit(3).all()
-    
-    logger.info(f"Found {len(shared_entries)} recent shared entries")
-    
-    # Keep track of files we've already included to avoid duplicates
-    processed_files = set()
-    files = []
-    
-    for entry in shared_entries:
-        file = db.query(models.File).filter(models.File.id == entry.file_id).first()
-        if file:
-            try:
-                # Skip if this file is a child of a folder we've already processed
-                if file.parent_id and file.parent_id in processed_files:
-                    continue
-                
-                # If this is a folder, get its contents and add them to the list
-                if file.type == 'folder':
-                    folder_contents = get_folder_contents(db, file.id, current_user.id)
-                    for content in folder_contents:
-                        if content["id"] not in processed_files:
-                            # Remove parent_id to show files at root level
-                            content["parent_id"] = None
-                            processed_files.add(content["id"])
-                            content["is_shared"] = True
-                            shared_file = schemas.SharedFileResponse(**content)
-                            files.append(shared_file)
-                else:
-                    # For regular files, add them directly
-                    file_dict = {
-                        "id": file.id,
-                        "filename": file.filename,
-                        "file_path": file.file_path,
-                        "file_size": file.file_size,
-                        "file_type": file.file_type,
-                        "upload_date": file.upload_date.isoformat() if file.upload_date else None,
-                        "owner_id": file.owner_id,
-                        "is_shared": True,  # Mark as shared since it's in the shared list
-                        "type": file.type,
-                        "parent_id": None,  # Set to None to show at root level
-                        "permission": entry.permission,
-                        "children": []
-                    }
-                    processed_files.add(file.id)
-                    shared_file = schemas.SharedFileResponse(**file_dict)
-                    files.append(shared_file)
-            except Exception as e:
-                logger.error(f"Error processing recent shared file: {str(e)}")
-                continue
-    return files
+    try:
+        # First try with share_date
+        return db.query(models.FileShare).filter(
+            models.FileShare.shared_with_id == current_user.id,
+            models.FileShare.file_id.isnot(None)
+        ).order_by(models.FileShare.share_date.desc()).limit(3).all()
+    except Exception as e:
+        logger.error(f"Error fetching recent shared files: {str(e)}")
+        # If share_date column doesn't exist, try without it
+        return db.query(models.FileShare).filter(
+            models.FileShare.shared_with_id == current_user.id,
+            models.FileShare.file_id.isnot(None)
+        ).limit(3).all()
 
 @app.get("/files/", response_model=List[schemas.File])
 def get_files(

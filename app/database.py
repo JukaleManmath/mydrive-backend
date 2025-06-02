@@ -3,28 +3,29 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# Get database URL from environment variable, default to SQLite for development
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./mydrive.db")
+# Get database URL from environment variable
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Configure engine based on database type
-if SQLALCHEMY_DATABASE_URL.startswith("postgresql"):
-    # PostgreSQL configuration for Supabase
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        pool_size=5,
-        max_overflow=10,
-        pool_timeout=30,
-        pool_recycle=1800
-    )
-else:
-    # SQLite configuration for development
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
+if not SQLALCHEMY_DATABASE_URL:
+    logger.error("DATABASE_URL environment variable is not set")
+    raise ValueError("DATABASE_URL environment variable is not set")
+
+# Configure engine for PostgreSQL
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

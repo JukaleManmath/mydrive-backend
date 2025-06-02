@@ -14,8 +14,11 @@ class User(Base):
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
     is_admin = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     files = relationship("File", back_populates="owner")
+    shared_files = relationship("FileShare", back_populates="shared_with")
     created_versions = relationship("FileVersion", back_populates="created_by_user")
 
 class FileType(str, enum.Enum):
@@ -24,7 +27,8 @@ class FileType(str, enum.Enum):
 
 class PermissionType(str, enum.Enum):
     READ = "read"
-    EDIT = "edit"
+    WRITE = "write"
+    ADMIN = "admin"
 
 class FileVersion(Base):
     __tablename__ = "file_versions"
@@ -59,9 +63,14 @@ class File(Base):
     is_shared = Column(Boolean, default=False)
     type = Column(String, default='file') # 'file' or 'folder'
     parent_id = Column(Integer, ForeignKey("files.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    is_deleted = Column(Boolean, default=False)
+    version = Column(Integer, default=1)
+    mime_type = Column(String, nullable=True)
 
     owner = relationship("User", back_populates="files")
-    shared_with = relationship("FileShare", back_populates="file")
+    shares = relationship("FileShare", back_populates="file")
     # Relationship for children files/folders within this folder
     children = relationship("File", backref="parent", remote_side=[id])
     versions = relationship("FileVersion", back_populates="file", cascade="all, delete-orphan")
@@ -72,7 +81,8 @@ class FileShare(Base):
     id = Column(Integer, primary_key=True, index=True)
     file_id = Column(Integer, ForeignKey("files.id"))
     shared_with_id = Column(Integer, ForeignKey("users.id"))
-    share_date = Column(DateTime, default=datetime.utcnow)
-    permission = Column(String, default="read")  # 'read' or 'edit'
+    permission = Column(Enum(PermissionType), default=PermissionType.READ)
+    share_date = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    file = relationship("File", back_populates="shared_with") 
+    file = relationship("File", back_populates="shares")
+    shared_with = relationship("User", back_populates="shared_files") 
