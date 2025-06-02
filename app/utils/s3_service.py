@@ -151,4 +151,16 @@ class S3Service:
         except ClientError as e:
             if e.response['Error']['Code'] == '404':
                 return False
-            raise Exception(f"Error checking file existence in S3: {str(e)}") 
+            raise Exception(f"Error checking file existence in S3: {str(e)}")
+
+    def get_file(self, key: str) -> bytes:
+        """Retrieve file content from S3"""
+        try:
+            logger.info(f"Retrieving file from S3: {key}")
+            response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
+            content = response['Body'].read()
+            logger.info(f"File retrieved successfully from S3: {key}")
+            return content
+        except ClientError as e:
+            logger.error(f"Error retrieving file from S3: {str(e)}")
+            raise Exception(f"Error retrieving file from S3: {str(e)}") 
