@@ -259,7 +259,7 @@ async def upload_file(
                     file_path=db_file.file_path,
                     file_size=db_file.file_size,
                     created_at=db_file.upload_date,
-                    created_by=current_user.id,
+                    comment=None,
                     is_current=True
                 )
                 db.add(version)
@@ -607,8 +607,9 @@ def create_folder(
             upload_date=datetime.utcnow(),
             owner_id=current_user.id,
             parent_id=parent_id,
-            type='folder',
-            is_shared=False
+            type='folder',  # Explicitly set type to folder
+            is_shared=False,
+            mime_type=None  # Folders don't have a mime type
         )
         db.add(db_folder)
         db.commit()
