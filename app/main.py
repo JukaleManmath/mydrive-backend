@@ -256,17 +256,16 @@ async def upload_file(
                 # Use raw SQL to avoid model issues
                 create_version = text("""
                     INSERT INTO file_versions 
-                    (file_id, version_number, file_path, file_size, created_at, is_current) 
+                    (file_id, version_number, file_path, file_size, created_at) 
                     VALUES 
-                    (:file_id, :version_number, :file_path, :file_size, :created_at, :is_current)
+                    (:file_id, :version_number, :file_path, :file_size, :created_at)
                 """)
                 db.execute(create_version, {
                     "file_id": db_file.id,
                     "version_number": 1,
                     "file_path": db_file.file_path,
                     "file_size": db_file.file_size,
-                    "created_at": db_file.upload_date,
-                    "is_current": True
+                    "created_at": db_file.upload_date
                 })
                 db.commit()
                 logger.info(f"Created initial version for file: {db_file.id}")
@@ -623,18 +622,18 @@ def create_folder(
             if not parent_folder:
                 raise HTTPException(status_code=404, detail="Parent folder not found or not owned by user")
 
-        # Create folder record
+        # Create folder record with explicit type='folder'
         db_folder = models.File(
             filename=folder_name,
             file_path=None,  # Folders don't have a file path
             file_size=0,  # Folders don't have a size
-            file_type=None,  # Folders don't have a file type
+            file_type='folder',  # Set file_type to 'folder'
             upload_date=datetime.utcnow(),
             owner_id=current_user.id,
             parent_id=parent_id,
             type='folder',  # Explicitly set type to folder
             is_shared=False,
-            mime_type=None  # Folders don't have a mime type
+            mime_type='folder'  # Set mime_type to 'folder'
         )
         db.add(db_folder)
         db.commit()
