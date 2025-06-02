@@ -28,6 +28,7 @@ from passlib.context import CryptContext
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
+from sqlalchemy import text  # Add this import at the top with other imports
 
 # Load environment variables
 load_dotenv()
@@ -466,9 +467,11 @@ def delete_file(
         try:
             # First, try to delete any versions
             try:
-                # Use raw SQL to avoid SQLAlchemy model issues
-                db.execute("DELETE FROM file_versions WHERE file_id = :file_id", {"file_id": file_id})
+                # Use SQLAlchemy text() for raw SQL
+                delete_versions = text("DELETE FROM file_versions WHERE file_id = :file_id")
+                db.execute(delete_versions, {"file_id": file_id})
                 db.commit()
+                logger.info(f"Deleted versions for file {file_id}")
             except Exception as e:
                 logger.error(f"Error deleting versions: {str(e)}")
                 db.rollback()
