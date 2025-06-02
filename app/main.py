@@ -249,21 +249,26 @@ async def upload_file(
                 logger.error(f"Error cleaning up S3 file after database failure: {str(cleanup_error)}")
             raise HTTPException(status_code=500, detail=f"Error creating file record: {str(e)}")
 
-        # After successful upload, create initial version
+        # After successful upload, create initial version using raw SQL
         if db_file.type == 'file':
             logger.info("Creating initial version...")
             try:
-                # Create initial version
-                version = models.FileVersion(
-                    file_id=db_file.id,
-                    version_number=1,
-                    file_path=db_file.file_path,
-                    file_size=db_file.file_size,
-                    created_at=db_file.upload_date,
-                    comment=None,
-                    is_current=True
-                )
-                db.add(version)
+                # Use raw SQL to avoid model issues
+                create_version = text("""
+                    INSERT INTO file_versions 
+                    (file_id, version_number, file_path, file_size, created_at, comment, is_current) 
+                    VALUES 
+                    (:file_id, :version_number, :file_path, :file_size, :created_at, :comment, :is_current)
+                """)
+                db.execute(create_version, {
+                    "file_id": db_file.id,
+                    "version_number": 1,
+                    "file_path": db_file.file_path,
+                    "file_size": db_file.file_size,
+                    "created_at": db_file.upload_date,
+                    "comment": None,
+                    "is_current": True
+                })
                 db.commit()
                 logger.info(f"Created initial version for file: {db_file.id}")
             except Exception as e:
@@ -679,7 +684,25 @@ def get_folder_contents_endpoint(
 
 @app.get("/users/me", response_model=schemas.User)
 def read_users_me(current_user: models.User = Depends(get_current_active_user)):
-    return current_user
+    """Get current user profile with username"""
+    try:
+        # Ensure we have the latest data
+        db = next(get_db())
+        user = db.query(models.User).filter(models.User.id == current_user.id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Return user data with username
+        return {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "is_active": user.is_active,
+            "is_admin": user.is_admin
+        }
+    except Exception as e:
+        logger.error(f"Error getting user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def root():
