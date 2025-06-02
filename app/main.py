@@ -731,4 +731,38 @@ def read_file_versions(
     if db_file.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to view versions of this file")
     versions = crud.get_file_versions(db, file_id=file_id, skip=skip, limit=limit)
-    return versions 
+    return versions
+
+@app.patch("/users/me", response_model=schemas.User)
+def update_user_profile(
+    user_update: schemas.UserUpdate,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        # Check if email is being updated and if it's already taken
+        if user_update.email and user_update.email != current_user.email:
+            existing_user = db.query(models.User).filter(models.User.email == user_update.email).first()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already registered")
+
+        # Check if username is being updated and if it's already taken
+        if user_update.username and user_update.username != current_user.username:
+            existing_user = db.query(models.User).filter(models.User.username == user_update.username).first()
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Username already taken")
+
+        # Update user fields
+        if user_update.email:
+            current_user.email = user_update.email
+        if user_update.username:
+            current_user.username = user_update.username
+
+        db.commit()
+        db.refresh(current_user)
+        return current_user
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error updating user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e)) 
