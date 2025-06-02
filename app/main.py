@@ -256,9 +256,9 @@ async def upload_file(
                 # Use raw SQL to avoid model issues
                 create_version = text("""
                     INSERT INTO file_versions 
-                    (file_id, version_number, file_path, file_size, created_at, comment, is_current) 
+                    (file_id, version_number, file_path, file_size, created_at, is_current) 
                     VALUES 
-                    (:file_id, :version_number, :file_path, :file_size, :created_at, :comment, :is_current)
+                    (:file_id, :version_number, :file_path, :file_size, :created_at, :is_current)
                 """)
                 db.execute(create_version, {
                     "file_id": db_file.id,
@@ -266,7 +266,6 @@ async def upload_file(
                     "file_path": db_file.file_path,
                     "file_size": db_file.file_size,
                     "created_at": db_file.upload_date,
-                    "comment": None,
                     "is_current": True
                 })
                 db.commit()
@@ -859,4 +858,41 @@ def update_user_profile(
         raise he
     except Exception as e:
         logger.error(f"Error updating user profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/files/{file_id}/content")
+async def get_file_content(
+    file_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get file content from S3"""
+    try:
+        # Get file from database
+        file = db.query(models.File).filter(models.File.id == file_id).first()
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Check if user has access
+        if file.owner_id != current_user.id and not file.is_shared:
+            raise HTTPException(status_code=403, detail="Not authorized to access this file")
+        
+        # Get file from S3
+        try:
+            file_content = s3_service.get_file(file.file_path)
+            return Response(
+                content=file_content,
+                media_type=file.file_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{file.filename}"'
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error getting file from S3: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error retrieving file")
+            
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error getting file content: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
