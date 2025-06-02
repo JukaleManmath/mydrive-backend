@@ -107,4 +107,7 @@ class FileVersionWithUser(FileVersion):
 
 class FolderCreate(BaseModel):
     name: str
-    parent_id: Optional[int] = None 
+    parent_id: Optional[int] = None
+
+class FileMove(BaseModel):
+    target_parent_id: Optional[int] = None 

@@ -29,6 +29,8 @@ from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sqlalchemy import text  # Add this import at the top with other imports
+import io
+from fastapi.responses import StreamingResponse
 
 # Load environment variables
 load_dotenv()
@@ -892,4 +894,91 @@ async def get_file_content(
         raise he
     except Exception as e:
         logger.error(f"Error getting file content: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/files/{file_id}/download")
+async def download_file(
+    file_id: int,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Download a file from S3"""
+    try:
+        # Get file from database
+        file = db.query(models.File).filter(models.File.id == file_id).first()
+        if not file:
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        # Check if user has access
+        if file.owner_id != current_user.id and not file.is_shared:
+            raise HTTPException(status_code=403, detail="Not authorized to access this file")
+        
+        # Prevent download for folders
+        if file.type == 'folder' or (file.mime_type == 'folder'):
+            raise HTTPException(status_code=400, detail="Cannot download a folder")
+        
+        try:
+            # Get file from S3
+            file_content = s3_service.get_file(file.file_path)
+            return StreamingResponse(
+                io.BytesIO(file_content),
+                media_type=file.file_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f'attachment; filename="{file.filename}"'
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error getting file from S3: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error retrieving file")
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error downloading file: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/files/{file_id}/move")
+async def move_file(
+    file_id: int,
+    move_data: schemas.FileMove,
+    current_user: models.User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Move a file or folder to a different parent folder"""
+    try:
+        # Get the file/folder to move
+        item = db.query(models.File).filter(models.File.id == file_id).first()
+        if not item:
+            raise HTTPException(status_code=404, detail="File or folder not found")
+        
+        # Check if user is the owner
+        if item.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to move this item")
+        
+        # If moving to a folder, verify it exists and user has access
+        if move_data.target_parent_id is not None:
+            target_folder = db.query(models.File).filter(
+                models.File.id == move_data.target_parent_id,
+                models.File.type == 'folder'
+            ).first()
+            if not target_folder:
+                raise HTTPException(status_code=404, detail="Target folder not found")
+            
+            # Prevent moving a folder into itself or its descendants
+            if item.type == 'folder':
+                current = target_folder
+                while current is not None:
+                    if current.id == item.id:
+                        raise HTTPException(status_code=400, detail="Cannot move a folder into itself or its descendants")
+                    current = current.parent
+        
+        # Update the parent_id
+        item.parent_id = move_data.target_parent_id
+        db.commit()
+        db.refresh(item)
+        
+        return file_to_dict(item)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error moving file: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e)) 
