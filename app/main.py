@@ -692,13 +692,15 @@ def read_users_me(current_user: models.User = Depends(get_current_active_user)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        # Return user data with username
+        # Return user data with all required fields
         return {
             "id": user.id,
             "email": user.email,
             "username": user.username,
             "is_active": user.is_active,
-            "is_admin": user.is_admin
+            "is_admin": user.is_admin,
+            "created_at": user.created_at if hasattr(user, 'created_at') else datetime.utcnow(),
+            "updated_at": user.updated_at if hasattr(user, 'updated_at') else datetime.utcnow()
         }
     except Exception as e:
         logger.error(f"Error getting user profile: {str(e)}")
