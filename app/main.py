@@ -452,27 +452,25 @@ def delete_file(
                 logger.error(f"Error deleting file from S3: {str(e)}")
                 # Continue with database deletion even if S3 deletion fails
         
-        # Delete all versions
-        versions = db.query(models.FileVersion).filter(models.FileVersion.file_id == file_id).all()
-        for version in versions:
-            if version.file_path:
-                try:
-                    s3_service.delete_file(version.file_path)
-                except Exception as e:
-                    logger.error(f"Error deleting version from S3: {str(e)}")
-            db.delete(version)
-        
-        # Delete all shares
-        shares = db.query(models.FileShare).filter(models.FileShare.file_id == file_id).all()
-        for share in shares:
-            db.delete(share)
+        # Delete all shares first
+        try:
+            shares = db.query(models.FileShare).filter(models.FileShare.file_id == file_id).all()
+            for share in shares:
+                db.delete(share)
+            db.commit()
+        except Exception as e:
+            logger.error(f"Error deleting shares: {str(e)}")
         
         # Delete the file record
-        db.delete(file)
-        db.commit()
-        
-        logger.info(f"File {file_id} deleted successfully")
-        return {"message": "File deleted successfully"}
+        try:
+            db.delete(file)
+            db.commit()
+            logger.info(f"File {file_id} deleted successfully")
+            return {"message": "File deleted successfully"}
+        except Exception as e:
+            logger.error(f"Error deleting file record: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
     except HTTPException as he:
         raise he
     except Exception as e:
