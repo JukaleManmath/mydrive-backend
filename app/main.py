@@ -861,31 +861,33 @@ async def get_file_content(
     current_user: models.User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Get file content from S3"""
+    """Get file content or presigned URL from S3"""
     try:
         # Get file from database
         file = db.query(models.File).filter(models.File.id == file_id).first()
         if not file:
             raise HTTPException(status_code=404, detail="File not found")
-        
         # Check if user has access
         if file.owner_id != current_user.id and not file.is_shared:
             raise HTTPException(status_code=403, detail="Not authorized to access this file")
-        
-        # Get file from S3
+        # Prevent preview for folders
+        if file.type == 'folder' or (file.mime_type == 'folder'):
+            raise HTTPException(status_code=400, detail="Cannot preview a folder")
+        # If file is text, return content
+        if file.file_type and file.file_type.startswith('text/'):
+            try:
+                file_content = s3_service.get_file(file.file_path)
+                return {"content": file_content.decode('utf-8')}
+            except Exception as e:
+                logger.error(f"Error getting text file from S3: {str(e)}")
+                raise HTTPException(status_code=500, detail="Error retrieving file")
+        # For binary files (pdf, images, etc.), return a presigned URL
         try:
-            file_content = s3_service.get_file(file.file_path)
-            return Response(
-                content=file_content,
-                media_type=file.file_type or 'application/octet-stream',
-                headers={
-                    'Content-Disposition': f'attachment; filename="{file.filename}"'
-                }
-            )
+            url = s3_service.get_file_url(file.file_path)
+            return {"url": url}
         except Exception as e:
-            logger.error(f"Error getting file from S3: {str(e)}")
-            raise HTTPException(status_code=500, detail="Error retrieving file")
-            
+            logger.error(f"Error generating presigned URL: {str(e)}")
+            raise HTTPException(status_code=500, detail="Error retrieving file URL")
     except HTTPException as he:
         raise he
     except Exception as e:
