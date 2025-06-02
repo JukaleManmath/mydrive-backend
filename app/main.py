@@ -460,22 +460,18 @@ def delete_file(
             db.commit()
         except Exception as e:
             logger.error(f"Error deleting shares: {str(e)}")
+            db.rollback()
         
         # Delete the file record
         try:
             # First, try to delete any versions
             try:
-                versions = db.query(models.FileVersion).filter(models.FileVersion.file_id == file_id).all()
-                for version in versions:
-                    if version.file_path:
-                        try:
-                            s3_service.delete_file(version.file_path)
-                        except Exception as e:
-                            logger.error(f"Error deleting version from S3: {str(e)}")
-                    db.delete(version)
+                # Use raw SQL to avoid SQLAlchemy model issues
+                db.execute("DELETE FROM file_versions WHERE file_id = :file_id", {"file_id": file_id})
                 db.commit()
             except Exception as e:
                 logger.error(f"Error deleting versions: {str(e)}")
+                db.rollback()
                 # Continue with file deletion even if version deletion fails
             
             # Then delete the file
@@ -485,6 +481,7 @@ def delete_file(
             return {"message": "File deleted successfully"}
         except Exception as e:
             logger.error(f"Error deleting file record: {str(e)}")
+            db.rollback()
             raise HTTPException(status_code=500, detail=str(e))
             
     except HTTPException as he:

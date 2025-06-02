@@ -20,7 +20,9 @@ class S3Service:
             aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
             region_name=os.getenv('AWS_REGION')
         )
-        self.bucket_name = os.getenv('AWS_BUCKET_NAME')
+        self.bucket_name = os.getenv('S3_BUCKET_NAME')
+        if not self.bucket_name:
+            raise ValueError("S3_BUCKET_NAME environment variable is not set")
         logger.info(f"Initialized S3 service with bucket: {self.bucket_name}")
         
         # Configure CORS for the bucket
